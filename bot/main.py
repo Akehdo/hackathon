@@ -64,10 +64,54 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 async def start_cmd(message: Message, state: FSMContext):
     await state.clear()
     await state.set_state(CsvState.waiting_for_files)
+    
+    requirements1 = (
+    "📌 <b>Требования к CSV-файлу transactions:</b>\n\n"
+    "1️⃣ <b>Транзакции (transactions):</b>\n"
+    "Обязательные колонки и типы:\n"
+    "• <code>cst_dim_id</code> — float\n"
+    "• <code>transdate</code> — datetime\n"
+    "• <code>transdatetime</code> — string\n"
+    "• <code>amount</code> — float\n"
+    "• <code>docno</code> — int\n"
+    "• <code>direction</code> — string\n"
+    "• <code>target</code> — int (0/1)\n"
+)
+
+    requirements2 = (
+        "📌 <b>Требования к CSV-файлу patterns:</b>\n\n"
+        "2️⃣ <b>Паттерны (patterns):</b>\n"
+        "Обязательные колонки и типы:\n"
+        "• <code>transdate</code> — datetime\n"
+        "• <code>cst_dim_id</code> — float\n"
+        "• <code>monthly_os_changes</code> — int\n"
+        "• <code>monthly_phone_model_changes</code> — int\n"
+        "• <code>last_phone_model_categorical</code> — string\n"
+        "• <code>last_os_categorical</code> — string\n"
+        "• <code>logins_last_7_days</code> — int\n"
+        "• <code>logins_last_30_days</code> — int\n"
+        "• <code>login_frequency_7d</code> — float\n"
+        "• <code>login_frequency_30d</code> — float\n"
+        "• <code>freq_change_7d_vs_mean</code> — float\n"
+        "• <code>logins_7d_over_30d_ratio</code> — float\n"
+        "• <code>avg_login_interval_30d</code> — float\n"
+        "• <code>std_login_interval_30d</code> — float\n"
+        "• <code>var_login_interval_30d</code> — float\n"
+        "• <code>ewm_login_interval_7d</code> — float\n"
+        "• <code>burstiness_login_interval</code> — float\n"
+        "• <code>fano_factor_login_interval</code> — float\n"
+        "• <code>zscore_avg_login_interval_7d</code> — float\n\n"
+    )
+
+
+
     await message.answer(
         "Отправьте два CSV-файла.\n"
-        "Можно по одному, можно сразу оба одним сообщением."
+        "Можно по одному, можно сразу оба одним сообщением." 
     )
+
+    await message.answer(requirements1, parse_mode="HTML")
+    await message.answer(requirements2, parse_mode="HTML")
 
 
 # ==================== СОХРАНЕНИЕ ФАЙЛА ====================
