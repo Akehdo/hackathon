@@ -2,6 +2,7 @@ from fastapi import FastAPI, UploadFile, File
 import pandas as pd
 from io import BytesIO
 import joblib
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
 from helpers import validate_transaction_data,validate_patterns_data, identify_separator, merge_transaction_pattern_data, preprocess_merged_data
 app = FastAPI()
 
@@ -46,9 +47,16 @@ async def upload_csv(file1: UploadFile = File(...), file2: UploadFile = File(...
         predictions = model.predict_proba(preprocessed_df)[:, 1]
         temp['target'] = (predictions > PRED_THRESHOLD).astype(int) 
         result = temp.to_dict(orient='records')
-        # TODO: Need to calculate metrics of target vs expected_target
         
-        return {"predictions": result}
+        # Calculate metrics of target vs expected_target
+        metrics = {
+            "accuracy": accuracy_score(temp['expected_target'], temp['target']),
+            "precision": precision_score(temp['expected_target'], temp['target'], zero_division=0),
+            "recall": recall_score(temp['expected_target'], temp['target'], zero_division=0),
+            "f1_score": f1_score(temp['expected_target'], temp['target'], zero_division=0)
+        }
+        
+        return {"predictions": result, "metrics": metrics}
     except Exception as e:
         return {"error": str(e)}
 
