@@ -25,24 +25,24 @@ async def upload_csv(file1: UploadFile = File(...), file2: UploadFile = File(...
     
     if df2.shape[1] < df1.shape[1]:
         df1, df2 = df2, df1
-        
     # validate data
     transactions = validate_transaction_data(df1)
     patterns = validate_patterns_data(df2)
     if transactions.get("status") == "error":
-        return {"error": transactions["message"]}
+        return {"error": transactions["message"], "file": "transactions"}
     if patterns.get("status") == "error":
-        return {"error": patterns["message"]}
-    
+        return {"error": patterns["message"], "file": "patterns"}
+
     #merge
     merged_df = merge_transaction_pattern_data(transactions=df1, patterns=df2)
+
     preprocessed_df = preprocess_merged_data(merged_df)
 
     temp = preprocessed_df.copy()
     temp.rename(columns={'target': "expected_target"}, inplace=True)
     
     preprocessed_df.drop(columns=['cst_dim_id', 'transdate', 'transdatetime', 'docno', 'target'], inplace=True, errors='ignore')
-
+    
     try: 
         predictions = model.predict_proba(preprocessed_df)[:, 1]
         temp['target'] = (predictions > PRED_THRESHOLD).astype(int) 

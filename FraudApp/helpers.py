@@ -36,7 +36,7 @@ def validate_transaction_data(df: pd.DataFrame) -> object:
     """
     required_columns = {
         'cst_dim_id': 'float64',
-        'transdate': object,
+        'transdate': 'datetime64[ns]',
         'transdatetime': object,
         'amount': 'float64',
         'docno': 'int64',
@@ -45,14 +45,22 @@ def validate_transaction_data(df: pd.DataFrame) -> object:
     }
     missing_columns = []
     incorrect_types = []
+    try:
+        df['transdate'] = pd.to_datetime(df['transdate'])
+    except Exception as e:
+        try:
+            df['transdate'] = pd.to_datetime(df['transdate'].astype(str).str.replace("'", ""))
+        except Exception as e:
+            incorrect_types.append(('transdate', 'datetime64[ns]', 'invalid format'))
     for column, dtype in required_columns.items():
-        if column in FLOAT_DTYPES and pd.api.types.is_integer_dtype(df[column].dtype):
-            print("skipping float check for integer column:", column)
-            continue
         if column not in df.columns:
             missing_columns.append(column)
+        elif column in FLOAT_DTYPES and pd.api.types.is_integer_dtype(df[column].dtype):
+            print("skipping float check for integer column:", column)
+            continue
         elif not pd.api.types.is_dtype_equal(df[column].dtype, dtype):
             incorrect_types.append((column, dtype, df[column].dtype))
+
     if missing_columns:
         return {
             "status": "error",
@@ -64,7 +72,7 @@ def validate_transaction_data(df: pd.DataFrame) -> object:
             "status": "error",
             "file": "transactions",
             "message": "Incorrect data types for columns: " + ", ".join(
-                [f"{col} (edfpected {edfp}, got {got})" for col, edfp, got in incorrect_types]
+                [f"{col} (expected {edfp}, got {got})" for col, edfp, got in incorrect_types]
             )
         }
     return {
@@ -86,7 +94,7 @@ def validate_patterns_data(df: pd.DataFrame) -> object:
 
     # logins_last_7_days;logins_last_30_days;login_frequency_7d;login_frequency_30d;freq_change_7d_vs_mean;logins_7d_over_30d_ratio;avg_login_interval_30d;std_login_interval_30d;var_login_interval_30d;ewm_login_interval_7d;burstiness_login_interval;fano_factor_login_interval;zscore_avg_login_interval_7d
     required_columns = {
-        'transdate': object,
+        'transdate': 'datetime64[ns]',
         'cst_dim_id': 'float64',
         'monthly_os_changes': 'int64', 
         'monthly_phone_model_changes': 'int64',
@@ -106,6 +114,13 @@ def validate_patterns_data(df: pd.DataFrame) -> object:
         'fano_factor_login_interval': 'float64',
         'zscore_avg_login_interval_7d': 'float64'
     }
+    try:
+        df['transdate'] = pd.to_datetime(df['transdate'])
+    except Exception as e:
+        try:
+            df['transdate'] = pd.to_datetime(df['transdate'].astype(str).str.replace("'", ""))
+        except Exception as e:
+            incorrect_types.append(('transdate', 'datetime64[ns]', 'invalid format'))
     missing_columns = []
     incorrect_types = []
     for column, dtype in required_columns.items():
@@ -127,7 +142,7 @@ def validate_patterns_data(df: pd.DataFrame) -> object:
             "status": "error",
             "file": "patterns",
             "message": "Incorrect data types for columns: " + ", ".join(
-                [f"{col} (edfpected {edfp}, got {got})" for col, edfp, got in incorrect_types]
+                [f"{col} (expected {edfp}, got {got})" for col, edfp, got in incorrect_types]
             )
         }
     return {
@@ -137,6 +152,8 @@ def validate_patterns_data(df: pd.DataFrame) -> object:
 
 def merge_transaction_pattern_data(transactions: pd.DataFrame, patterns: pd.DataFrame) -> pd.DataFrame:
     merged_df = transactions.merge(patterns, on=['cst_dim_id', 'transdate'], how='left')
+    merged_df = merged_df.dropna()
+    print(len(merged_df), "rows after merging transaction and pattern data")
     return merged_df
 
 def preprocess_merged_data(df: pd.DataFrame) -> pd.DataFrame:
@@ -218,7 +235,6 @@ def preprocess_merged_data(df: pd.DataFrame) -> pd.DataFrame:
         if pd.api.types.is_integer_dtype(df[col].dtype):
             df[col] = df[col].astype('float64')
             print(f"Converted column {col} to float64")
-    
 
     return df
 
