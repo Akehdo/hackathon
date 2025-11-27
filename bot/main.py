@@ -2,6 +2,10 @@ import os
 import time
 import asyncio
 import aiohttp
+import json
+import csv
+from aiogram.types import FSInputFile
+
 from typing import Any, Dict, Awaitable, Callable, Union, List
 
 from aiogram import Bot, Dispatcher, F, BaseMiddleware
@@ -103,7 +107,7 @@ async def process_csv(message: Message, state: FSMContext, album: List[Message] 
         await message.answer("Получены два CSV файла. Отправляю на backend...")
 
         result = await send_to_backend(path1, path2)
-        await message.answer(result)
+        await send_csv_file(message, result)
 
         for p in (path1, path2):
             try: os.remove(p)
@@ -125,7 +129,7 @@ async def process_csv(message: Message, state: FSMContext, album: List[Message] 
         await message.answer("Второй файл получен. Отправляю на backend...")
 
         result = await send_to_backend(file1, path2)
-        await message.answer(result)
+        await send_csv_file(message, result)
 
         for p in (file1, path2):
             try: os.remove(p)
@@ -147,7 +151,68 @@ async def send_to_backend(file1: str, file2: str) -> str:
                     return await resp.text()
     except Exception as e:
         return f"Ошибка: {e}"
+    
+    
+async def send_csv_file(message: Message, text_result: str):
+    import json
+    import csv
+    import os
+    import time
+    from aiogram.types import FSInputFile
 
+    try:
+        parsed = json.loads(text_result)
+        rows = parsed.get("predictions", [])
+        metrics = parsed.get("metrics")
+        pretty = format_metrics(metrics)
+
+        file_name = f"result_{int(time.time())}.csv"
+
+        with open(file_name, "w", encoding="utf-8", newline="") as f:
+            if rows:
+                writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+                writer.writeheader()
+                writer.writerows(rows)
+            else:
+                f.write("empty")
+
+        # создаём InputFile
+        file_to_send = FSInputFile(file_name)
+
+        await message.answer_document(
+            document=file_to_send,
+            caption="Готово! Результат во вложении (CSV)."
+        )
+        
+        await message.answer(pretty, parse_mode="Markdown")
+
+    except Exception as e:
+        await message.answer(f"Ошибка при сборке CSV: {e}")
+
+    finally:
+        if os.path.exists(file_name):
+            os.remove(file_name)
+
+def format_metrics(metrics: dict) -> str:
+    fraud = metrics.get("fraud", {})
+    nonfraud = metrics.get("nonfraud", {})
+
+    text = (
+        "📊 *Итоговые метрики модели*\n\n"
+        "🔴 *Мошенничество (fraud)*:\n"
+        f"• Точность (precision): {fraud.get('precision'):.4f}\n"
+        f"• Полнота (recall): {fraud.get('recall'):.4f}\n"
+        f"• F1: {fraud.get('f1-score'):.4f}\n"
+        f"• Кол-во примеров: {int(fraud.get('support', 0))}\n\n"
+        
+        "🟢 *Не мошенничество (nonfraud)*:\n"
+        f"• Точность (precision): {nonfraud.get('precision'):.4f}\n"
+        f"• Полнота (recall): {nonfraud.get('recall'):.4f}\n"
+        f"• F1: {nonfraud.get('f1-score'):.4f}\n"
+        f"• Кол-во примеров: {int(nonfraud.get('support', 0))}\n"
+    )
+
+    return text   
 
 # ==================== ЗАПУСК ====================
 async def main():
