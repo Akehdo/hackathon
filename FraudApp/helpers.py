@@ -39,14 +39,29 @@ def validate_transaction_data(df: pd.DataFrame) -> bool:
         'direction': object,
         'target': 'int64'
     }
+    missing_columns = []
+    incorrect_types = []
     for column, dtype in required_columns.items():
         if column not in df.columns:
-            print(f"Missing required column: {column}")
-            return False
-        if not pd.api.types.is_dtype_equal(df[column].dtype, dtype):
-            print(f"Incorrect data type for column: {column}. Expected {dtype}, got {df[column].dtype}")
-            return False
-    return True
+            missing_columns.append(column)
+        elif not pd.api.types.is_dtype_equal(df[column].dtype, dtype):
+            incorrect_types.append((column, dtype, df[column].dtype))
+    if missing_columns:
+        return {
+            "status": "error",
+            "message": f"Missing required columns: {', '.join(missing_columns)}"
+        }
+    if incorrect_types:
+        return {
+            "status": "error",
+            "message": "Incorrect data types for columns: " + ", ".join(
+                [f"{col} (expected {exp}, got {got})" for col, exp, got in incorrect_types]
+            )
+        }
+    return {
+        "status": "success",
+        "message": "Validation passed"
+    }
 
 def validate_patterns_data(df: pd.DataFrame) -> object:
     """
@@ -111,6 +126,8 @@ def merge_transaction_pattern_data(transactions: pd.DataFrame, patterns: pd.Data
     return merged_df
 
 def preprocess_merged_data(df: pd.DataFrame) -> pd.DataFrame:
+    df = df.dropna(how='all', axis=0, subset=['monthly_os_changes', 'monthly_phone_model_changes'])
+
     df['month'] = pd.to_datetime(df['transdatetime']).dt.month
     df['dayofweek'] = pd.to_datetime(df['transdatetime']).dt.dayofweek
     df['hour'] = pd.to_datetime(df['transdatetime']).dt.hour
@@ -142,3 +159,42 @@ def preprocess_merged_data(df: pd.DataFrame) -> pd.DataFrame:
     df.drop(columns=['cst_dim_id', 'transdate', 'transdatetime', 'docno', 'target'], inplace=True, errors='ignore')
 
     return df
+
+
+# Example usage:
+
+# df1 = pd.DataFrame({
+#     'transdate': ['2023-01-01'],
+#     'cst_dim_id': [1.0],
+#     'monthly_os_changes': [0],
+#     'monthly_phone_model_changes': [0],
+#     'last_phone_model_categorical': ['model1'],
+#     'last_os_categorical': ['os1'],
+#     'logins_last_7_days': [5],
+#     'logins_last_30_days': [20],
+#     'login_frequency_7d': [0.5],
+#     'login_frequency_30d': [0.67],
+#     'freq_change_7d_vs_mean': [0.1],
+#     'logins_7d_over_30d_ratio': [0.25],
+#     'avg_login_interval_30d': [3600.0],
+#     'std_login_interval_30d': [600.0],
+#     'var_login_interval_30d': [360000.0],
+#     'ewm_login_interval_7d': [3000.0],
+#     'burstiness_login_interval': [1.2],
+#     'fano_factor_login_interval': [1.5],
+#     'zscore_avg_login_interval_7d': [2.0]
+# })
+
+# df2 = pd.DataFrame({
+#     'cst_dim_id': [1],
+#     'transdate': ['2023-01-01'],
+#     'transdatetime': ['2023-01-01 12:00:00'],
+#     'amount': [100.0],
+#     'docno': [12345],
+#     'direction': ['asdkasbd1bh2bsad'],
+#     'target': [1]
+# })
+
+# merged = merge_transaction_pattern_data(df2, df1)
+# preprocessed = preprocess_merged_data(merged)
+# print(preprocessed)
