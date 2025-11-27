@@ -38,12 +38,13 @@ async def upload_csv(file1: UploadFile = File(...), file2: UploadFile = File(...
     preprocessed_df = preprocess_merged_data(merged_df)
 
     temp = preprocessed_df.copy()
+    temp.rename(columns={'target': "expected_target"}, inplace=True)
     
     preprocessed_df.drop(columns=['cst_dim_id', 'transdate', 'transdatetime', 'docno', 'target'], inplace=True, errors='ignore')
 
     try: 
         predictions = model.predict_proba(preprocessed_df)[:, 1]
-        temp['target'] = (predictions > PRED_THRESHOLD).astype(int)
+        temp['target'] = (predictions > PRED_THRESHOLD).astype(int) 
         result = temp.to_dict(orient='records')
         return {"predictions": result}
     except Exception as e:
