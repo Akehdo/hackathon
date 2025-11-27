@@ -5,6 +5,8 @@ import joblib
 from helpers import validate_transaction_data,validate_patterns_data, identify_separator, merge_transaction_pattern_data, preprocess_merged_data
 app = FastAPI()
 
+PRED_THRESHOLD = 0.3
+
 model = joblib.load("model.pkl")
 
 @app.post("/process")
@@ -32,7 +34,6 @@ async def upload_csv(file1: UploadFile = File(...), file2: UploadFile = File(...
         return {"error": patterns["message"]}
     
     #merge
-
     merged_df = merge_transaction_pattern_data(transactions=df1, patterns=df2)
     preprocessed_df = preprocess_merged_data(merged_df)
 
@@ -42,7 +43,7 @@ async def upload_csv(file1: UploadFile = File(...), file2: UploadFile = File(...
 
     try: 
         predictions = model.predict_proba(preprocessed_df)[:, 1]
-        temp['target'] = (predictions > 0.3).astype(int)
+        temp['target'] = (predictions > PRED_THRESHOLD).astype(int)
         result = temp.to_dict(orient='records')
         return {"predictions": result}
     except Exception as e:
