@@ -11,7 +11,16 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.types import Message
 
 from states import CsvState
-from config import BOT_TOKEN, BACKEND_URL
+
+BOT_TOKEN, BACKEND_URL = "", ""
+
+if os.path.exists("bot/config.py"):
+    from bot.config import BOT_TOKEN, BACKEND_URL
+else:  
+    BOT_TOKEN = os.getenv("BOT_TOKEN")
+    BACKEND_URL = os.getenv("BACKEND_URL")
+
+
 
 
 # ==================== MIDDLEWARE ДЛЯ АЛЬБОМОВ ====================
