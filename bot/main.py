@@ -2,6 +2,10 @@ import os
 import time
 import asyncio
 import aiohttp
+import json
+import csv
+from aiogram.types import FSInputFile
+
 from typing import Any, Dict, Awaitable, Callable, Union, List
 
 from aiogram import Bot, Dispatcher, F, BaseMiddleware
@@ -69,10 +73,54 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 async def start_cmd(message: Message, state: FSMContext):
     await state.clear()
     await state.set_state(CsvState.waiting_for_files)
+    
+    requirements1 = (
+    "📌 <b>Требования к CSV-файлу transactions:</b>\n\n"
+    "1️⃣ <b>Транзакции (transactions):</b>\n"
+    "Обязательные колонки и типы:\n"
+    "• <code>cst_dim_id</code> — float\n"
+    "• <code>transdate</code> — datetime\n"
+    "• <code>transdatetime</code> — string\n"
+    "• <code>amount</code> — float\n"
+    "• <code>docno</code> — int\n"
+    "• <code>direction</code> — string\n"
+    "• <code>target</code> — int (0/1)\n"
+)
+
+    requirements2 = (
+        "📌 <b>Требования к CSV-файлу patterns:</b>\n\n"
+        "2️⃣ <b>Паттерны (patterns):</b>\n"
+        "Обязательные колонки и типы:\n"
+        "• <code>transdate</code> — datetime\n"
+        "• <code>cst_dim_id</code> — float\n"
+        "• <code>monthly_os_changes</code> — int\n"
+        "• <code>monthly_phone_model_changes</code> — int\n"
+        "• <code>last_phone_model_categorical</code> — string\n"
+        "• <code>last_os_categorical</code> — string\n"
+        "• <code>logins_last_7_days</code> — int\n"
+        "• <code>logins_last_30_days</code> — int\n"
+        "• <code>login_frequency_7d</code> — float\n"
+        "• <code>login_frequency_30d</code> — float\n"
+        "• <code>freq_change_7d_vs_mean</code> — float\n"
+        "• <code>logins_7d_over_30d_ratio</code> — float\n"
+        "• <code>avg_login_interval_30d</code> — float\n"
+        "• <code>std_login_interval_30d</code> — float\n"
+        "• <code>var_login_interval_30d</code> — float\n"
+        "• <code>ewm_login_interval_7d</code> — float\n"
+        "• <code>burstiness_login_interval</code> — float\n"
+        "• <code>fano_factor_login_interval</code> — float\n"
+        "• <code>zscore_avg_login_interval_7d</code> — float\n\n"
+    )
+
+
+
     await message.answer(
         "Отправьте два CSV-файла.\n"
-        "Можно по одному, можно сразу оба одним сообщением."
+        "Можно по одному, можно сразу оба одним сообщением." 
     )
+
+    await message.answer(requirements1, parse_mode="HTML")
+    await message.answer(requirements2, parse_mode="HTML")
 
 
 # ==================== СОХРАНЕНИЕ ФАЙЛА ====================
@@ -112,7 +160,7 @@ async def process_csv(message: Message, state: FSMContext, album: List[Message] 
         await message.answer("Получены два CSV файла. Отправляю на backend...")
 
         result = await send_to_backend(path1, path2)
-        await message.answer(result)
+        await send_csv_file(message, result)
 
         for p in (path1, path2):
             try: os.remove(p)
@@ -134,7 +182,7 @@ async def process_csv(message: Message, state: FSMContext, album: List[Message] 
         await message.answer("Второй файл получен. Отправляю на backend...")
 
         result = await send_to_backend(file1, path2)
-        await message.answer(result)
+        await send_csv_file(message, result)
 
         for p in (file1, path2):
             try: os.remove(p)
@@ -156,7 +204,68 @@ async def send_to_backend(file1: str, file2: str) -> str:
                     return await resp.text()
     except Exception as e:
         return f"Ошибка: {e}"
+    
+    
+async def send_csv_file(message: Message, text_result: str):
+    import json
+    import csv
+    import os
+    import time
+    from aiogram.types import FSInputFile
 
+    try:
+        parsed = json.loads(text_result)
+        rows = parsed.get("predictions", [])
+        metrics = parsed.get("metrics")
+        pretty = format_metrics(metrics)
+
+        file_name = f"result_{int(time.time())}.csv"
+
+        with open(file_name, "w", encoding="utf-8", newline="") as f:
+            if rows:
+                writer = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+                writer.writeheader()
+                writer.writerows(rows)
+            else:
+                f.write("empty")
+
+        # создаём InputFile
+        file_to_send = FSInputFile(file_name)
+
+        await message.answer_document(
+            document=file_to_send,
+            caption="Готово! Результат во вложении (CSV)."
+        )
+        
+        await message.answer(pretty, parse_mode="Markdown")
+
+    except Exception as e:
+        await message.answer(f"Ошибка при сборке CSV: {e}")
+
+    finally:
+        if os.path.exists(file_name):
+            os.remove(file_name)
+
+def format_metrics(metrics: dict) -> str:
+    fraud = metrics.get("fraud", {})
+    nonfraud = metrics.get("nonfraud", {})
+
+    text = (
+        "📊 *Итоговые метрики модели*\n\n"
+        "🔴 *Мошенничество (fraud)*:\n"
+        f"• Точность (precision): {fraud.get('precision'):.4f}\n"
+        f"• Полнота (recall): {fraud.get('recall'):.4f}\n"
+        f"• F1: {fraud.get('f1-score'):.4f}\n"
+        f"• Кол-во примеров: {int(fraud.get('support', 0))}\n\n"
+        
+        "🟢 *Не мошенничество (nonfraud)*:\n"
+        f"• Точность (precision): {nonfraud.get('precision'):.4f}\n"
+        f"• Полнота (recall): {nonfraud.get('recall'):.4f}\n"
+        f"• F1: {nonfraud.get('f1-score'):.4f}\n"
+        f"• Кол-во примеров: {int(nonfraud.get('support', 0))}\n"
+    )
+
+    return text   
 
 # ==================== ЗАПУСК ====================
 async def main():
