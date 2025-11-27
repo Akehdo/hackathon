@@ -49,12 +49,14 @@ async def upload_csv(file1: UploadFile = File(...), file2: UploadFile = File(...
         result = temp.to_dict(orient='records')
         
         # Calculate metrics of target vs expected_target
-        metrics = {
-            "accuracy": accuracy_score(temp['expected_target'], temp['target']),
-            "precision": precision_score(temp['expected_target'], temp['target'], zero_division=0),
-            "recall": recall_score(temp['expected_target'], temp['target'], zero_division=0),
-            "f1_score": f1_score(temp['expected_target'], temp['target'], zero_division=0)
-        }
+        metrics = {}
+        if 'expected_target' in temp.columns:
+            metrics = {
+                "accuracy": accuracy_score(temp['expected_target'], temp['target']),
+                "precision": precision_score(temp['expected_target'], temp['target'], zero_division=0),
+                "recall": recall_score(temp['expected_target'], temp['target'], zero_division=0),
+                "f1_score": f1_score(temp['expected_target'], temp['target'], zero_division=0)
+            }
         
         return {"predictions": result, "metrics": metrics}
     except Exception as e:
