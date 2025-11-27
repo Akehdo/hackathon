@@ -2,7 +2,7 @@ from fastapi import FastAPI, UploadFile, File
 import pandas as pd
 from io import BytesIO
 import joblib
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import classification_report
 from helpers import validate_transaction_data,validate_patterns_data, identify_separator, merge_transaction_pattern_data, preprocess_merged_data
 app = FastAPI()
 
@@ -49,14 +49,21 @@ async def upload_csv(file1: UploadFile = File(...), file2: UploadFile = File(...
         result = temp.to_dict(orient='records')
         
         # Calculate metrics of target vs expected_target
-        metrics = {}
-        if 'expected_target' in temp.columns:
-            metrics = {
-                "accuracy": accuracy_score(temp['expected_target'], temp['target']),
-                "precision": precision_score(temp['expected_target'], temp['target'], zero_division=0),
-                "recall": recall_score(temp['expected_target'], temp['target'], zero_division=0),
-                "f1_score": f1_score(temp['expected_target'], temp['target'], zero_division=0)
+        metrics = {
+            "fraud": {
+
+            },
+            "nonfraud": {
+
             }
+        }
+        if 'expected_target' in temp.columns:
+            y_true = temp['expected_target']
+            y_pred = temp['target']
+            metrics_report = classification_report(y_true, y_pred, output_dict=True)
+            metrics["fraud"] = metrics_report['1']
+            metrics["nonfraud"] = metrics_report['0']
+
         
         return {"predictions": result, "metrics": metrics}
     except Exception as e:
