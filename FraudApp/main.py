@@ -46,6 +46,8 @@ async def upload_csv(file1: UploadFile = File(...), file2: UploadFile = File(...
         predictions = model.predict_proba(preprocessed_df)[:, 1]
         temp['target'] = (predictions > PRED_THRESHOLD).astype(int) 
         result = temp.to_dict(orient='records')
+        # TODO: Need to calculate metrics of target vs expected_target
+        
         return {"predictions": result}
     except Exception as e:
         return {"error": str(e)}
